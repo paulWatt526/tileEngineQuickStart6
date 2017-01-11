@@ -27,6 +27,7 @@ local ENVIRONMENT = {
 
 local CAMERA_SPEED      = 4 / 1000          -- Camera speed, 4 tiles per second
 local MOVING_LIGHT_SPEED= 4 / 1000          -- Moving light speed, 4 tiles per second
+local ENTITY_SPEED      = 4 / 1000          -- Speed of the entity, 4 tiles per second
 local ROW_COUNT         = #ENVIRONMENT      -- Row count of the environment
 local COLUMN_COUNT      = #ENVIRONMENT[1]   -- Column count of the environment
 local WALL_LAYER_COUNT  = 4                 -- The number of extruded wall layers
@@ -44,6 +45,9 @@ local rightLightId                          -- Will track the ID of the right li
 local movingLightId                         -- Will track the ID of the moving light
 local movingLightDirection                  -- Tracks the direction of the moving light
 local movingLightXPos                       -- Tracks the continous position of the moving light
+local entityId                              -- Will track the ID of the entity
+local entityDirection                       -- Tracks the direction of the moving entity
+local entityLayer                           -- Reference to the entity layer
 
 -- -----------------------------------------------------------------------------------
 -- This will load in the example sprite sheet.  Replace this with the sprite
@@ -276,6 +280,24 @@ local function onFrame(event)
         end
         camera.setLocation(curXPos, camera.getY())
 
+        -- Update the position of the entity
+        local entityRow, entityCol = entityLayer.getEntityTilePosition(entityId)
+        local yDelta = ENTITY_SPEED * deltaTime
+        if entityDirection == "down" then
+            entityRow = entityRow + yDelta
+            if entityRow > 12.5 then
+                entityDirection = "up"
+                entityRow = 12.5 - (entityRow - 12.5)
+            end
+        else
+            entityRow = entityRow - yDelta
+            if entityRow < 2.5 then
+                entityDirection = "down"
+                entityRow = 2.5 + (2.5 - entityRow)
+            end
+        end
+        entityLayer.setEntityTilePosition(entityId, entityRow, entityCol)
+
         -- Update the state machine
         stateMachine.update(deltaTime)
 
@@ -288,6 +310,9 @@ local function onFrame(event)
 
         -- This is the initial position of the camera
         camera.setLocation(0.5, 7.5)
+
+        -- Set the initial position of the entity
+        entityLayer.centerEntityOnTile(entityId, 3, 8)
 
         -- Since a time delta cannot be calculated on the first frame, 1 is passed
         -- in here as a placeholder.
@@ -365,6 +390,13 @@ function scene:create( event )
     -- the scaling delta to zero.
     module.insertLayerAtIndex(floorLayer, 1, 0)
 
+    entityLayer = TileEngine.EntityLayer.new({
+        tileSize = 32,
+        spriteResolver = spriteResolver
+    })
+    module.insertLayerAtIndex(entityLayer, 2, 0)
+    entityId = entityLayer.addEntity("tiles_2")
+
     -- Create extruded wall layers
     for i=1,WALL_LAYER_COUNT do
         local wallLayer = TileEngine.TileLayer.new({
@@ -373,7 +405,7 @@ function scene:create( event )
         })
         addWallsToLayer(wallLayer)
         wallLayer.resetDirtyTileCollection()
-        module.insertLayerAtIndex(wallLayer, i + 1, SCALING_DELTA)
+        module.insertLayerAtIndex(wallLayer, i + 2, SCALING_DELTA)
     end
 
     -- Add the module to the engine.
@@ -417,6 +449,9 @@ function scene:show( event )
 
         -- Initialize the camera direction to "right"
         cameraDirection = "right"
+
+        -- Initialize the entity direction to "down"
+        entityDirection = "down"
 
         -- Register the onFrame event handler to be called before each frame.
         Runtime:addEventListener( "enterFrame", onFrame )
